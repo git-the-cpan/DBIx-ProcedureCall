@@ -1,4 +1,4 @@
-use Test::More tests => 14;
+use Test::More tests => 17;
 use strict;
 
 BEGIN { use_ok('DBIx::ProcedureCall::Oracle') };
@@ -7,11 +7,11 @@ SKIP: {
 
 my $dbuser = $ENV{ORACLE_USERID};
 
-skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 13 unless $dbuser;
+skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 16 unless $dbuser;
 
 eval {
 	require DBI;
-} or skip "could not load DBI module: $@", 13;
+} or skip "could not load DBI module: $@", 16;
 
 
 my $conn = DBI->connect('dbi:Oracle:', $dbuser, '', { PrintError => 0 , RaiseError=>1});
@@ -66,7 +66,7 @@ ok ( DBIx::ProcedureCall::run($conn, 'greatest:function', 1,2,42) == 42, $testna
 
 my $testname = 'call to dbms_random.initialize with a named parameter';
 
-T1::dbms_random_initialize($conn, 12345678);
+T1::dbms_random_initialize($conn, {val=>12345678});
 ok ( 1 , $testname );
 		
 }
@@ -269,6 +269,79 @@ my ($line, $status);
 DBMS_output_get_line($conn, [\$line, 1000], \$status);
 
 ok ( defined $status , $testname );
+		
+}
+
+
+#########################
+
+# The tests below require some test 
+# procedures to be stored in the database.
+# see t/oracle.sql
+
+#########################
+
+my ($check) = $conn->selectrow_array(q[
+	select count(*) from user_source where name = 'DBIXPROCCALL'
+	]);
+
+skip 'skipping additional tests that need to be set up (see t/oracle.sql)', 3 
+	unless $check;
+
+{
+
+my $testname = 'cursor';
+
+eval q{
+	use DBIx::ProcedureCall qw[ 
+		dbixproccall.refcur:cursor
+		];
+	};
+
+my $r = dbixproccall_refcur($conn);
+
+my ($a)  = $r->fetchrow_array;
+
+DBIx::ProcedureCall::Oracle->__close($r);
+
+ok ( $a eq 'X', $testname);
+
+}
+
+
+#########################
+
+{
+
+my $testname = 'call a table function';
+
+eval q{
+	use DBIx::ProcedureCall qw[ 
+		dbixproccall.str2tbl:table
+		];
+	};
+
+my $data = dbixproccall_str2tbl($conn, '123,456,789');
+my ($no) = $data->fetchrow_array;
+ok ( $no == 123 , $testname );
+		
+}
+
+
+#########################
+
+{
+
+my $testname = 'call a table function and fetch';
+
+eval q{
+	use DBIx::ProcedureCall qw[ 
+		DBIxproccall.str2tbl:table:fetch[[]]
+		];
+	};
+
+my $data = DBIxproccall_str2tbl($conn, '123,456,789');
+ok ( (@$data == 3  and $data->[2][0] == 789), $testname );
 		
 }
 

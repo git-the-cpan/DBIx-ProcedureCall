@@ -1,4 +1,4 @@
-DBIx::ProcedureCall version 0.06
+DBIx::ProcedureCall version 0.07
 =============================
 
 NOTE:
@@ -24,13 +24,17 @@ To install this module type the following:
 
    perl Makefile.PL
    make
+   # if you want to run  Oracle tests
    export ORACLE_USERID = 'username/passwd@dbname'
+   # if you want to run PostgreSQL tests
+   export PGUSER = 'username'
    make test
    make install
    
-The ORACLE_USERID is only needed to connect to the database
+The ORACLE_USERID and PGUSER environment variables are
+only needed to connect to the database
 during "make test" and will not be stored anywhere.
-The test uses the database read-only.
+The tests use the database read-only.
 
 DEPENDENCIES
 

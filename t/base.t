@@ -1,7 +1,7 @@
 #########################
 
 
-use Test::More tests => 5;
+use Test::More tests => 6;
 use strict;
 
 BEGIN { use_ok('DBIx::ProcedureCall') };
@@ -88,6 +88,48 @@ ok (
 	MySchema::MyPackage->can('anotherprocedure')
 	&& 
 	MySchema::MyPackage->can('myfunction'),
+	$testname
+	);
+}		
+
+#########################
+
+{
+
+my $testname = 'check all allowable attributes ';
+
+my @errors;
+my $i = 0;
+
+foreach (qw~
+	procedure  
+	function 	
+	cached	
+	cursor	
+	fetch()	
+	fetch[]	
+	fetch{}	
+	fetch[[]]	
+	fetch[{}]	
+	table	
+~){
+
+$i++;
+
+eval qq{
+	use DBIx::ProcedureCall qw(
+			MyProc$i:$_
+			);
+	};
+
+warn $@ if $@;
+push @errors, $@ if $@;
+
+
+}
+
+ok (
+	(@errors == 0),
 	$testname
 	);
 }		

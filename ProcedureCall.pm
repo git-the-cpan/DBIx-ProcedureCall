@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 our %__loaded_drivers;
 
@@ -16,11 +16,13 @@ our %__known_attributes = qw~
 	cached	1
 	package	1
 	packaged  1
+	cursor	1
 	fetch()	1
 	fetch[]	1
 	fetch{}	1
 	fetch[[]]	1
 	fetch[{}]	1
+	table	1
 ~;
 	   
 sub __run_procedure{
@@ -75,14 +77,15 @@ sub __fetch{
 	if ($attr->{'fetch[[]]'} ) { $data = $sth->fetchall_arrayref; }
 	elsif ($attr->{'fetch()'} ) { 
 		my @data = $sth->fetchrow_array; 
-		"DBIx::ProcedureCall::$dbtype"->__close($sth);
+		"DBIx::ProcedureCall::$dbtype"->__close($sth) if $attr->{cursor};
 		return @data;
 	}
 	elsif ($attr->{'fetch[{}]'} ) { $data = $sth->fetchall_arrayref({ }); }
 	elsif ($attr->{'fetch{}'} ) { $data = $sth->fetchrow_hashref; }
 	elsif ($attr->{'fetch[]'} ) { $data = $sth->fetchrow_arrayref; }
 	
-	"DBIx::ProcedureCall::$dbtype"->__close($sth);
+	"DBIx::ProcedureCall::$dbtype"->__close($sth)
+		if $attr->{cursor};
 	
 	return $data;
 }
@@ -159,14 +162,17 @@ sub run{
 	
 	my %attr = map { (lc($_) => 1) } @attr;
 	
-	# any fetch implies cursor
+	# any fetch implies function
 	if ( grep /^fetch/,  keys %attr ) {
-		$attr{'cursor'} = 1;
+		$attr{'function'} = 1;
 		$attr{'fetch'} = 1;
 	}
 	
 	# cursor implies function
 	$attr{'function'} = 1 if $attr{'cursor'};
+	
+	# table implies function
+	$attr{'function'} = 1 if $attr{'table'};
 	
 	
 	return __run(wantarray, $name, \%attr, $dbh, @_);
@@ -186,14 +192,17 @@ sub import {
 	my %attr = map { (lc($_) => 1) } @attr;
 	
 	
-	# any fetch implies cursor
+	# any fetch implies function
 	if ( grep /^fetch/,  keys %attr ) {
-		$attr{'cursor'} = 1;
+		$attr{'function'} = 1;
 		$attr{'fetch'} = 1;
 	}
 	
 	# cursor implies function
 	$attr{'function'} = 1 if $attr{'cursor'};
+	
+	# table implies function
+	$attr{'function'} = 1 if $attr{'table'};
 	
 	if ($attr{'package'}){
 		delete $attr{'package'};
@@ -263,15 +272,18 @@ DBIx::ProcedureCall - Perl extension to make database stored procedures look lik
 
 =head1 DESCRIPTION
 
-When developing applications for an Oracle database, it is a good
-idea to put all your database access code into stored procedures.
-This module provides a convenient way to call these stored
+When developing applications for a database that supports
+stored procedures, it is a good 
+idea to put all your database access code right into the
+database..
+
+This module provides a convenient way to call stored
 procedures from Perl by creating wrapper subroutines that
 produce the necessary SQL statements, bind parameters and run
 the query.
 
-While the this module's interface is database-independent,
-only Oracle is currently supported.
+While this module's interface is database-independent,
+only Oracle and PostgreSQL are currently supported.
 
 
 =head2 EXPORT
@@ -293,15 +305,17 @@ their first parameter.
 
 =head3 Subroutine names
 
-The names of the subroutine is derived from the name
+The name of the subroutine is derived from the name
 of the stored procedure. Because the procedure name can
 contain characters that are not valid in a Perl procedure name,
 it will be sanitized a little:
 
 Everything that is not a letter or a number becomes underscores. 
 This will happen for all
-procedures that are part of a PL/SQL package, where
-the package name and the procedure name are divided by a dot.
+procedures that are part of a hierarchy (
+such as an Oracle PL/SQL package or qualified with a schema),
+where
+the parts of the procedure name are divided by a dot.
 
 	use DBIx::ProcedureCall qw( 
 		sysdate
@@ -321,49 +335,11 @@ This will not be detected by DBIx::ProcedureCall, but
 results in a database error when you try to call them.
 
 
-=head3 Procedures and functions
-
-DBIx::ProcedureCall needs to know if you are about
-to call a function or a procedure (because the SQL is different).
-You have to make sure you call the wrapper subroutines
-in the right context (or you can optionally declare
-the correct type, see below)
-
-You have to call procedures in void context.
-
-	# works
-	dbms_random_initialize($conn, 12345);
-	# fails
-	print dbms_random_initialize($conn, 12345);
-
-You have to call functions in non-void context.
-
-	# works
-	print sysdate($conn);
-	# fails
-	sysdate($conn);
-
-If you try to call a function as a procedure, you will get
-a database error.
-
-If you do not want to rely on this mechanism, you can
-declare the correct type using the attributes :procedure
-and :function:
-
-	use DBIx::ProcedureCall qw[
-		sysdate:function
-		dbms_random.initialize:procedure
-		];
-
-If you use these attributes, the calling context will be
-ignored and the call will be dispatched according to 
-your declaration.
-
-
 =head3 Parameters
 
 You can pass parameters to the subroutines
-You can use both positional and named parameters,
+You can use both positional and named parameters
+(if the database you are using supports them),
 but cannot mix the two styles in the same call.
 
 Positional parameters are passed in after the 
@@ -418,16 +394,19 @@ When importing the subroutines, you can optionally specify
 one or more attributes. 
 
 	use DBIx::ProcedureCall qw[
-		sysdate:function:cached
+		sysdate:cached
 		];
 
-Currently known attributes are:
+A few attributes are independent of the database system that
+you use, but most rely on specific functions of the DBMS
+implemention. Please see the documentation about the
+DBMS you are going to use:
 
-=head4 :procedure / :function
+L<DBIx::ProcedureCall::Oracle>
 
-Declares the stored procedure to be a function or a procedure,
-so that the context in which you call the subroutine is of no importance
-any more.
+L<DBIx::ProcedureCall::Postgres>
+
+The generic attributes are:
 
 =head4 :cached
 
@@ -435,67 +414,15 @@ Uses DBI's prepare_cached() instead of the default prepare() ,
 which can increase database performance. See the DBI documentation 
 on how this works.
 
-=head4 :packaged
 
-Rather than importing the generated wrapper subroutine into
-your own module's namespace, you can request to create it
-in another package, whose name will be derived from the
-name of the stored procedure by replacing any dots (".") with 
-the Perl namespace seperator "::". 
+=head4  :fetch
 
-	use DBIx::ProcedureCall qw[
-		schema.package.procedure:packaged
-		];
-
-will create a subroutine called
-
-	schema::package::procedure
-
-
-=head4 :package
-
-When working with PL/SQL packages, you can declare the whole
-package instead of the individual procedures inside. This will
-set up a Perl package with an AUTOLOAD function, which automatically
-creates wrappers for the procedures in the package 
-when you call them.
-
-	use DBIx::ProcedureCall qw[
-		schema.package:package
-		];
-	
-	my $a = schema::package::a_function($conn, 1,2,3);
-	schema::package::a_procedure($conn);
-
-If you declare additional attributes, these attributes will 
-be used for the AUTOLOADed wrappers.
-
-If you need special attributes for individual parts of the package,
-you can mix in the :packaged style explained above:
-
-	# create a package of functions
-	# with the odd procedure
-	use DBIx::ProcedureCall qw[
-		schema.package:package:function
-		schema.package.a_procedure:packaged:procedure
-		];		
-
-=head4 :cursor / :fetch
-
-These attributes declare a function (they include an implicit :function)
-that returns a cursor (result set).
-
-Using :cursor, the wrapper function will give you that cursor. Check
-the documentation of your database driver about what you can do with
-that.
-
-Chances are that what you want to do with the cursor is fetch all its
-data and then close it. You can use one of the various :fetch attributes
-for just that. If you do, the wrapper function takes care of the cursor
-and returns the data.
-
-There are five types of :fetch for different DBI fetch
-methods. Check the DBI documents for details.
+Some stored procedures can return a result set (this topic
+is covered in the DBMS-specific documentation).
+DBIx::ProcedureCall provides five :fetch attributes that 
+let you control how this result set is transformed
+into a Perl data structure, each using a different DBI fetch
+method. Check the DBI documents for details.
 
 	:fetch()	does  fetchrow_array and returns the first row
 			as a list
@@ -533,24 +460,23 @@ of DBIx::ProcedureCall:
 
 This can be useful if you do not know the names of the 
 stored procedures at compilation time.
-You still have to know if it is a function or a procedure, though,
-because you need to call DBIx::ProcedureCall::run in the appropriate
-context.
 
 You can also use attributes (except for :package[d], which does not make
 sense here), with the same syntax as usual:
 
-	DBIx::ProcedureCall::run($conn, 'sysdate:function');
+	DBIx::ProcedureCall::run($conn, 'some_select:fetch[[]]');
 
 =head1 SEE ALSO
 
-This module is built on top of DBI, and
+This module is built on top of L<DBI>, and
 you need to use that module to establish a database connection.
 
-DBIx::Procedures::Oracle offers similar functionality.
-Unlike DBIx::ProcedureCall, it takes the additional step of
-checking in the data dictionary if the procedures you want
-exist, and what parameters they need.
+You have to read the DBIx::ProcedureCall documentation for the database system
+that you are using:
+
+L<DBIx::ProcedureCall::Oracle>
+
+L<DBIx::ProcedureCall::Postgres>
 
 =head1 LIMITATIONS
 
@@ -560,9 +486,10 @@ That is not the goal, if it can eliminate 90% of hand-written SQL
 and bind calls, I am happy.
 
 
-Only Oracle is supported now. 
+Only Oracle and Postgres are supported now. 
 If you want to implement a driver for another data base system,
-have a look at the source code for the Oracle version, see if you can adapt it.
+have a look at the source code for the current implementation,
+and see if you can adapt it.
 If this leads to working code, let me know, so that I can bundle it.
 
 
@@ -570,10 +497,7 @@ You cannot mix named and positional parameters
 
 
 LOB (except for small ones probably) do not work now.
-
-=head1 TODO
-
-Oracle table functions
+Or maybe they do. I have not tried.
 
 
 

@@ -1,4 +1,9 @@
 Revision history for Perl extension DBIx::ProcedureCall.
+	
+0.07 Mon Feb 14 2005
+	- support for PostgreSQL
+	- Oracle table functions
+	- fixed bug that accidentally disallowed :cursor
 
 0.06  Wed Jan 19 2005
 	- out and inout parameters
