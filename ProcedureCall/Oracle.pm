@@ -3,7 +3,7 @@ package DBIx::ProcedureCall::Oracle;
 use strict;
 use warnings;
 
-our $VERSION = '0.02';
+our $VERSION = '0.04';
 
 sub __run_procedure{
 	shift;
@@ -115,3 +115,28 @@ sub __run_function_named{
 
 1;
 __END__
+
+
+=head1 NAME
+
+DBIx::ProcedureCall::Oracle - Oracle driver for DBIx:::ProcedureCall
+
+=head1 DESCRIPTION
+
+This is an internal module used by DBIx::ProcedureCall. You do not need
+to access it directly.
+
+=head1 AUTHOR
+
+Thilo Planz, E<lt>thilo@cpan.orgE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2004 by Thilo Planz
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself. 
+
+=cut
+
+

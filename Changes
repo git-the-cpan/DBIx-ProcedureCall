@@ -1,6 +1,9 @@
 Revision history for Perl extension DBIx::ProcedureCall.
 
-0.03
+0.04  Wed Dec 08 2004
+	- added attributes :package, :packaged
+
+0.03  Tue Nov 30 2004
 	- changed name to DBIx::ProcedureCall
 	- added attributes :cached, :function, :procedure
 

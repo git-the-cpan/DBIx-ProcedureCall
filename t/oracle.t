@@ -1,14 +1,15 @@
-use Test::More tests => 4;
+use Test::More tests => 6;
 
 SKIP: {
 
-eval {
-	require DBI;
-} or skip "could not load DBI module: $@", 4;
 
 my $dbuser = $ENV{ORACLE_USERID};
 
-skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 4 unless $dbuser;
+skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 6 unless $dbuser;
+
+eval {
+	require DBI;
+} or skip "could not load DBI module: $@", 6;
 
 
 my $conn = DBI->connect('dbi:Oracle:', $dbuser, '', { PrintError => 0 , RaiseError=>1});
@@ -67,6 +68,45 @@ my $testname = 'call to greatest in the wrong context but with proper declaratio
 
 T1::greatest($conn, 12345678,11,11);
 ok ( 1 , $testname );
+		
+}
+
+#########################
+
+{
+
+my $testname = 'calls to dbms_random using a package';
+
+eval q{
+	use DBIx::ProcedureCall qw[ 
+		dbms_random:package
+		];
+	};
+
+dbms_random::initialize($conn,123456);
+my $a =  dbms_random::random($conn);
+
+ok ( $a == 1826721802 , $testname );
+		
+}
+
+#########################
+
+{
+
+my $testname = 'calls to dbms_random using packaged functions';
+
+eval q{
+	use DBIx::ProcedureCall qw[ 
+		DBMS_random.initialize:packaged:procedure
+		DBMS_random.random:packaged
+		];
+	};
+
+my $b = DBMS_random::initialize($conn,123456);
+my $a =  DBMS_random::random($conn);
+
+ok ( $a == 1826721802 , $testname );
 		
 }
 

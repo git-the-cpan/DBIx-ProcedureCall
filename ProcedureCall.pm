@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 our %__loaded_drivers;
 
@@ -76,12 +76,51 @@ sub import {
     foreach (@_) {
 	my ($name, @attr) = split ':';
 	my %attr = map { (lc($_) => 1) } @attr;
+	if ($attr{'package'}){
+		delete $attr{'package'};
+		my $pkgname = $name;
+		$pkgname =~ s/\./::/g;
+		$pkgname =~ s/[^:\w]/_/g;
+		*{"${pkgname}::AUTOLOAD"} = sub {__pkg_autoload($name, \%attr, @_) };
+		next;
+	}
+	if ($attr{'packaged'}){
+		delete $attr{'packaged'};
+		my @p = split '\.', $name;
+		die "cannot create a package for unpackaged procedure $name (name contains no dots)"
+			unless @p>1;
+		my $subname = pop @p;
+		my $pkgname = join '::', @p;
+		$pkgname =~ s/[^:\w]/_/g;
+		$subname =~ s/[^:\w]/_/g;
+		*{"${pkgname}::$subname"} = sub {__run(wantarray,$name,\%attr, @_) };
+		next;
+	}
+	
 	my $subname = $name;
 	$subname =~ s/\W/_/g;
-        *{"$caller\::$subname"} = sub { 
-			DBIx::ProcedureCall::__run(wantarray,$name,\%attr, @_)
+        *{"${caller}::$subname"} = sub { 
+			__run(wantarray,$name,\%attr, @_)
 		};
     }
+}
+
+sub __pkg_autoload{
+	my $name = shift;
+	my $attr = shift;
+	my $pkgname = $name;
+	$pkgname =~ s/\./::/g;
+	$pkgname =~ s/[^:\w]/_/g;
+	our $AUTOLOAD;
+	my @p = split '::', $AUTOLOAD;
+	my $subname = $p[-1];
+	$name = "$name.$subname";
+	my $sub =  sub { 
+			__run(wantarray,$name,$attr, @_);
+		};
+	no strict 'refs';
+	*{"${pkgname}::$subname"} = $sub;
+	$sub->(@_);
 }
 
 
@@ -246,8 +285,50 @@ Uses DBI's prepare_cached() instead of the default prepare() ,
 which can increase database performance. See the DBI documentation 
 on how this works.
 
+=head4 :packaged
+
+Rather than importing the generated wrapper subroutine into
+your own module's namespace, you can request to create it
+in another package, whose name will be derived from the
+name of the stored procedure by replacing any dots (".") with 
+the Perl namespace seperator "::". 
+
+	use DBIx::ProcedureCall qw[
+		schema.package.procedure:packaged
+		];
+
+will create a subroutine called
+
+	schema::package::procedure
 
 
+=head4 :package
+
+When working with PL/SQL packages, you can declare the whole
+package instead of the individual procedures inside. This will
+set up a Perl package with an AUTOLOAD function, which automatically
+creates wrappers for the procedures in the package 
+when you call them.
+
+	use DBIx::ProcedureCall qw[
+		schema.package:package
+		];
+	
+	my $a = schema::package::a_function($conn, 1,2,3);
+	schema::package::a_procedure($conn);
+
+If you declare additional attributes, these attributes will 
+be used for the AUTOLOADed wrappers.
+
+If you need special attributes for individual parts of the package,
+you can mix in the :packaged style explained above:
+
+	# create a package of functions
+	# with the odd procedure
+	use DBIx::ProcedureCall qw[
+		schema.package:package:function
+		schema.package.a_procedure:packaged:procedure
+		];		
 
 
 =head2 ALTERNATIVE INTERFACE
@@ -266,7 +347,8 @@ You still have to know if it is a function or a procedure, though,
 because you need to call DBIx::ProcedureCall::run in the appropriate
 context.
 
-You can also use attributes, with the same syntax as normal:
+You can also use attributes (except for :package[d], which does not make
+sense here), with the same syntax as usual:
 
 	DBIx::ProcedureCall::run($conn, 'sysdate:function');
 
@@ -302,11 +384,11 @@ Cursors and LOB (except for small ones probably) do not work now.
 
 =head1 TODO
 
-OUT parameters
+OUT and INOUT parameters
 
 Cursors
 
-Anonymous blocks
+specifying options when binding parameters
 
 
 =head1 AUTHOR
