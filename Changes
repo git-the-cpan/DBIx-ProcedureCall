@@ -1,0 +1,13 @@
+Revision history for Perl extension DBIx::ProcedureCall.
+
+0.03
+	- changed name to DBIx::ProcedureCall
+	- added attributes :cached, :function, :procedure
+
+0.02  Thu Nov 25 2004
+	- changed name to DBIx::Call
+	- separated DB-independent interface from Oracle-specific backend
+
+0.01  Mon Nov 22 11:10:14 2004
+	- original version; created by h2xs 1.22 with options
+		-AX -n Oracle::Procedures
