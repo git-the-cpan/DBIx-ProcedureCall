@@ -1,6 +1,11 @@
 Revision history for Perl extension DBIx::ProcedureCall.
 
-0.05	  Thu Dec 16 2004
+0.06  Wed Jan 19 2005
+	- out and inout parameters
+	- binding with optional arguments
+	- bug fix in fetch[{}] (did not slice properly)
+
+0.05	 Thu Dec 16 2004
 	- cursor handling
 	- checking for unknown attributes
 

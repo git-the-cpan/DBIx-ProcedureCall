@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 our %__loaded_drivers;
 
@@ -78,13 +78,62 @@ sub __fetch{
 		"DBIx::ProcedureCall::$dbtype"->__close($sth);
 		return @data;
 	}
-	elsif ($attr->{'fetch[{}]'} ) { $data = $sth->fetchall_arrayref({Slice => {} }); }
+	elsif ($attr->{'fetch[{}]'} ) { $data = $sth->fetchall_arrayref({ }); }
 	elsif ($attr->{'fetch{}'} ) { $data = $sth->fetchrow_hashref; }
 	elsif ($attr->{'fetch[]'} ) { $data = $sth->fetchrow_arrayref; }
 	
 	"DBIx::ProcedureCall::$dbtype"->__close($sth);
 	
 	return $data;
+}
+
+sub __bind_params{
+	my ($sql, $start_index, $params) = @_;
+	my @binder;
+	if (ref $params eq 'ARRAY'){
+		my $i = $start_index;
+		foreach (@$params){
+			# special bind options
+			if (ref $_ eq 'ARRAY'){
+				@binder = @$_;
+			}
+			else
+			{
+				@binder = ( $_ );
+			}
+			# INOUT parameters
+			if (ref $binder[0]){
+				# default MAXLEN 100
+				$binder[1] = 100 unless exists $binder[1];
+				$sql->bind_param_inout($i++, @binder);
+			}
+			else{
+				$sql->bind_param($i++, @binder);
+			}
+		}
+	}
+	else{
+		foreach (keys %$params){
+			# special bind options
+			my $p = $params->{$_};
+			if (ref $p eq 'ARRAY'){
+				@binder = @$p;
+			}
+			else
+			{
+				@binder = ( $p );
+			}
+			# INOUT parameters
+			if (ref $binder[0]){
+				# default MAXLEN 100
+				$binder[1] = 100 unless exists $binder[1];
+				$sql->bind_param_inout(":$_", @binder);
+			}
+			else{
+				$sql->bind_param(":$_", @binder);
+			}
+		}
+	}
 }
 
 sub __run{
@@ -262,9 +311,9 @@ the package name and the procedure name are divided by a dot.
 		
 	# gives you
 	
-	sysdate();					# no change
-	dbms_random_random();		# note the underscore
-	hh__uu();					# dollar signs removed
+	sysdate();	                          # no change
+	dbms_random_random();    # note the underscore
+	hh__uu();                           # dollar signs removed
 
 
 You can request stored procedures that do not exist.
@@ -314,7 +363,6 @@ your declaration.
 =head3 Parameters
 
 You can pass parameters to the subroutines
-(only IN parameters are supported at the moment)
 You can use both positional and named parameters,
 but cannot mix the two styles in the same call.
 
@@ -331,6 +379,38 @@ The parameters you use have to match the parameters
 defined (in the database) for the stored procedure. 
 If they do not, you 
 will get a database error at runtime.
+
+=head4 OUT and INOUT parameters
+
+You can also use OUT and INOUT parameters, which return
+values from the stored procedure, by setting up a scalar variable
+to receive the result and passing a reference to that variable:
+
+	my ($line, $status);
+	dbms_output.get_line( $conn, \$line, \$status);
+	# $line and $status contain the results now
+
+You might need to specify additional options for DBI to know
+how to bind these variables. You can do so by wrapping the
+variable reference and the options in an arrayref:
+
+	dbms_output.get_line( $conn, [\$line, 1000], \$status);
+
+The contents of this arrayref will be used in the bind_param_inout
+method of the statement handle: Above code results in
+
+	$sql->bind_param_inout(1, \$line, 1000);
+	$sql->bind_param_inout(2, \$status);
+
+If you do not specify options, the parameters will be bound with
+a default maximum size of 100 bytes.
+
+You can also specify these bind options with IN parameters if
+you need them.
+
+Please refer to the DBI documentation for details on binding 
+variables.
+
 
 =head3 Attributes
 
@@ -425,7 +505,7 @@ methods. Check the DBI documents for details.
 			as an arrayref
 	:fetch[[]]	does fetchall_arrayref and returns all rows
 			as an arrayref of arrayrefs
-	:fetch[{}]  	does fetchall_arrayref (Slice => {}) and returns all 
+	:fetch[{}]  	does fetchall_arrayref({}) and returns all 
 			rows as an arrayref of hashrefs
 
 Example:
@@ -488,16 +568,13 @@ If this leads to working code, let me know, so that I can bundle it.
 
 You cannot mix named and positional parameters
 
-You can only have IN parameters now (this is expected to be fixed in a future release)
 
 LOB (except for small ones probably) do not work now.
 
 =head1 TODO
 
-OUT and INOUT parameters
+Oracle table functions
 
-
-specifying options when binding parameters
 
 
 =head1 AUTHOR
@@ -506,7 +583,7 @@ Thilo Planz, E<lt>thilo@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2004 by Thilo Planz
+Copyright 2004/05 by Thilo Planz
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 

@@ -1,16 +1,17 @@
-use Test::More tests => 12;
+use Test::More tests => 14;
 use strict;
+
+BEGIN { use_ok('DBIx::ProcedureCall::Oracle') };
 
 SKIP: {
 
-
 my $dbuser = $ENV{ORACLE_USERID};
 
-skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 12 unless $dbuser;
+skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 13 unless $dbuser;
 
 eval {
 	require DBI;
-} or skip "could not load DBI module: $@", 12;
+} or skip "could not load DBI module: $@", 13;
 
 
 my $conn = DBI->connect('dbi:Oracle:', $dbuser, '', { PrintError => 0 , RaiseError=>1});
@@ -251,6 +252,27 @@ ok ( ((ref $data eq 'ARRAY')
 );
 
 }
+
+#########################
+
+{
+
+my $testname = 'bind OUT parameter and use bind options';
+
+eval q{
+	use DBIx::ProcedureCall qw[ 
+		DBMS_output.get_line:procedure
+		];
+	};
+
+my ($line, $status);
+DBMS_output_get_line($conn, [\$line, 1000], \$status);
+
+ok ( defined $status , $testname );
+		
+}
+
+
 
 # END SKIP
 };

@@ -3,7 +3,7 @@ package DBIx::ProcedureCall::Oracle;
 use strict;
 use warnings;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 sub __run_procedure{
 	shift;
@@ -26,10 +26,7 @@ sub __run_procedure{
 	$sql = $attr->{cached} ? $dbh->prepare_cached($sql)
 		: $dbh->prepare($sql);
 	# bind
-	my $i = 1;
-	foreach (@_){
-		$sql->bind_param($i++, $_);
-	}
+	DBIx::ProcedureCall::__bind_params($sql, 1, \@_);
 	# execute
 	$sql->execute;
 }
@@ -48,9 +45,7 @@ sub __run_procedure_named{
 	$sql = $attr->{cached} ? $dbh->prepare_cached($sql)
 		: $dbh->prepare($sql);
 	# bind
-	foreach (keys %$params){
-			$sql->bind_param(":$_", $params->{$_});
-	}
+	DBIx::ProcedureCall::__bind_params($sql, undef, $params);
 	# execute
 	$sql->execute;
 }
@@ -83,9 +78,8 @@ sub __run_function{
 	}else{
 		$sql->bind_param_inout($i++, \$r, 100);
 	}
-	foreach (@_){
-		$sql->bind_param($i++, $_);
-	}
+	DBIx::ProcedureCall::__bind_params($sql, $i, \@_);
+	
 	#execute
 	$sql->execute;
 	return $r;
@@ -107,13 +101,13 @@ sub __run_function_named{
 	# bind
 	my $r;
 	if ($attr->{cursor}){
-		$sql->bind_param_inout(':perl_oracle_procedures_ret', \$r,  0, {ora_type => DBD::Oracle::ORA_RSET});
+		$sql->bind_param_inout(':perl_oracle_procedures_ret', \$r,  0, {ora_type => DBD::Oracle::ORA_RSET()});
 	}else{
 		$sql->bind_param_inout(':perl_oracle_procedures_ret', \$r, 100);
 	}
-	foreach (keys %$params){
-			$sql->bind_param(":$_", $params->{$_});
-	}
+	# bind
+	DBIx::ProcedureCall::__bind_params($sql, undef, $params);
+	
 	# execute
 	$sql->execute;
 	return $r;
