@@ -3,7 +3,7 @@ package DBIx::ProcedureCall::Oracle;
 use strict;
 use warnings;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub __run_procedure{
 	shift;
@@ -78,7 +78,11 @@ sub __run_function{
 	# bind
 	my $r;
 	my $i = 1;
-	$sql->bind_param_inout($i++, \$r, 100);
+	if ($attr->{cursor}){
+		$sql->bind_param_inout($i++, \$r,  0, {ora_type => DBD::Oracle::ORA_RSET()});
+	}else{
+		$sql->bind_param_inout($i++, \$r, 100);
+	}
 	foreach (@_){
 		$sql->bind_param($i++, $_);
 	}
@@ -102,13 +106,26 @@ sub __run_function_named{
 		: $dbh->prepare($sql);
 	# bind
 	my $r;
-	$sql->bind_param_inout(':perl_oracle_procedures_ret', \$r, 100);
+	if ($attr->{cursor}){
+		$sql->bind_param_inout(':perl_oracle_procedures_ret', \$r,  0, {ora_type => DBD::Oracle::ORA_RSET});
+	}else{
+		$sql->bind_param_inout(':perl_oracle_procedures_ret', \$r, 100);
+	}
 	foreach (keys %$params){
 			$sql->bind_param(":$_", $params->{$_});
 	}
 	# execute
 	$sql->execute;
 	return $r;
+}
+
+sub __close{
+	shift;
+	my $sth = shift;
+	my $conn = $sth->{Database};
+	my $sql = $conn->prepare('BEGIN   close :curref; END;');
+	$sql->bind_param(":curref", $sth, {ora_type => DBD::Oracle::ORA_RSET()});
+	$sql->execute;
 }
 
 

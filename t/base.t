@@ -2,6 +2,7 @@
 
 
 use Test::More tests => 5;
+use strict;
 
 BEGIN { use_ok('DBIx::ProcedureCall') };
 

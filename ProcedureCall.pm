@@ -6,19 +6,34 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 our %__loaded_drivers;
 
+our %__known_attributes = qw~  
+	procedure  1
+	function 	1
+	cached	1
+	package	1
+	packaged  1
+	fetch()	1
+	fetch[]	1
+	fetch{}	1
+	fetch[[]]	1
+	fetch[{}]	1
+~;
+	   
 sub __run_procedure{
 		my $dbh =$_[0];
 		croak "expected a database handle as first parameter, but got nothing" unless $dbh;
-		my $name = $_[1];
-		croak "expected a procedure name to run against the database, but got nothing" unless $name;
 		
 		# determine database type
 		my $dbtype = eval { $dbh->get_info(17); };  #  17 : SQL_DBMS_NAME  
 		croak "could not determine the database type from $dbh: $@. Is that really a DBI database handle? " unless $dbtype;
+		
+		my $name = $_[1];
+		croak "expected a procedure name to run against the database, but got nothing" unless $name;
+		
 		# delegate to the driver
 		unless ($__loaded_drivers{$dbtype}){
 			eval  "require DBIx::ProcedureCall::$dbtype; \$__loaded_drivers{$dbtype} = 1;" 
@@ -31,19 +46,45 @@ sub __run_procedure{
 sub __run_function{
 		my $dbh = $_[0];
 		croak "expected a database handle as first parameter, but got nothing" unless $dbh;
-		my $name = $_[1];
-		croak "expected a function name to run against the database, but got nothing" unless $name;
 		
 		# determine database type
 		my $dbtype = eval { $dbh->get_info(17); };  #  17 : SQL_DBMS_NAME  
 		croak "could not determine the database type from $dbh: $@. Is that really a DBI database handle? " unless $dbtype;
+		
+		my $name = $_[1];
+		croak "expected a function name to run against the database, but got nothing" unless $name;
+		
+		my $attr = $_[2];
+		
 		# delegate to the driver
 		unless ($__loaded_drivers{$dbtype}){
 			eval  "require DBIx::ProcedureCall::$dbtype; \$__loaded_drivers{$dbtype} = 1;" 
 				or croak "failed to load driver for $dbtype database: $@";	
 		}	
+		my $r = "DBIx::ProcedureCall::$dbtype"->__run_function(@_);
+		return $r unless $attr->{fetch};
 		
-		return "DBIx::ProcedureCall::$dbtype"->__run_function(@_);
+		#fetch cursor
+		return __fetch($r, $attr, $dbtype);
+			
+}
+
+sub __fetch{
+	my ($sth, $attr, $dbtype) = @_;
+	my $data;
+	if ($attr->{'fetch[[]]'} ) { $data = $sth->fetchall_arrayref; }
+	elsif ($attr->{'fetch()'} ) { 
+		my @data = $sth->fetchrow_array; 
+		"DBIx::ProcedureCall::$dbtype"->__close($sth);
+		return @data;
+	}
+	elsif ($attr->{'fetch[{}]'} ) { $data = $sth->fetchall_arrayref({Slice => {} }); }
+	elsif ($attr->{'fetch{}'} ) { $data = $sth->fetchrow_hashref; }
+	elsif ($attr->{'fetch[]'} ) { $data = $sth->fetchrow_arrayref; }
+	
+	"DBIx::ProcedureCall::$dbtype"->__close($sth);
+	
+	return $data;
 }
 
 sub __run{
@@ -64,7 +105,21 @@ sub run{
 	my $dbh = shift;
 	my $n = shift;
 	my ($name, @attr) = split ':', $n;
+	my @err = grep { not exists $__known_attributes{lc $_} } @attr;
+	croak "tried to set unknown attributes (@err) for stored procedure '$name' " if @err;
+	
 	my %attr = map { (lc($_) => 1) } @attr;
+	
+	# any fetch implies cursor
+	if ( grep /^fetch/,  keys %attr ) {
+		$attr{'cursor'} = 1;
+		$attr{'fetch'} = 1;
+	}
+	
+	# cursor implies function
+	$attr{'function'} = 1 if $attr{'cursor'};
+	
+	
 	return __run(wantarray, $name, \%attr, $dbh, @_);
 }
 
@@ -75,7 +130,22 @@ sub import {
     no strict 'refs';
     foreach (@_) {
 	my ($name, @attr) = split ':';
+	
+	my @err = grep { not exists $__known_attributes{lc $_} } @attr;
+	croak "tried to set unknown attributes (@err) for stored procedure '$name' " if @err;
+	
 	my %attr = map { (lc($_) => 1) } @attr;
+	
+	
+	# any fetch implies cursor
+	if ( grep /^fetch/,  keys %attr ) {
+		$attr{'cursor'} = 1;
+		$attr{'fetch'} = 1;
+	}
+	
+	# cursor implies function
+	$attr{'function'} = 1 if $attr{'cursor'};
+	
 	if ($attr{'package'}){
 		delete $attr{'package'};
 		my $pkgname = $name;
@@ -330,6 +400,46 @@ you can mix in the :packaged style explained above:
 		schema.package.a_procedure:packaged:procedure
 		];		
 
+=head4 :cursor / :fetch
+
+These attributes declare a function (they include an implicit :function)
+that returns a cursor (result set).
+
+Using :cursor, the wrapper function will give you that cursor. Check
+the documentation of your database driver about what you can do with
+that.
+
+Chances are that what you want to do with the cursor is fetch all its
+data and then close it. You can use one of the various :fetch attributes
+for just that. If you do, the wrapper function takes care of the cursor
+and returns the data.
+
+There are five types of :fetch for different DBI fetch
+methods. Check the DBI documents for details.
+
+	:fetch()	does  fetchrow_array and returns the first row
+			as a list
+	:fetch{}	does fetchrow_hashref and returns the first row
+			as a hashref
+	:fetch[]  	does fetchrow_arrayref and returns the first row
+			as an arrayref
+	:fetch[[]]	does fetchall_arrayref and returns all rows
+			as an arrayref of arrayrefs
+	:fetch[{}]  	does fetchall_arrayref (Slice => {}) and returns all 
+			rows as an arrayref of hashrefs
+
+Example:
+
+	use DBIx::ProcedureCall
+		qw(  some_query_function:fetch[{}] );
+	
+	my $data = some_query_function($conn, @params);
+	# $data will look like this
+	# [  { column_one => 'data', column_two => 'data' },
+	#    { column_one => 'data', column_two => 'data' },
+	#    .... more rows ....
+	#   { column_one => 'data', column_two => 'data' } ]	
+
 
 =head2 ALTERNATIVE INTERFACE
 
@@ -380,13 +490,12 @@ You cannot mix named and positional parameters
 
 You can only have IN parameters now (this is expected to be fixed in a future release)
 
-Cursors and LOB (except for small ones probably) do not work now.
+LOB (except for small ones probably) do not work now.
 
 =head1 TODO
 
 OUT and INOUT parameters
 
-Cursors
 
 specifying options when binding parameters
 

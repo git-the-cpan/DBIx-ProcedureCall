@@ -1,5 +1,9 @@
 Revision history for Perl extension DBIx::ProcedureCall.
 
+0.05	  Thu Dec 16 2004
+	- cursor handling
+	- checking for unknown attributes
+
 0.04  Wed Dec 08 2004
 	- added attributes :package, :packaged
 
