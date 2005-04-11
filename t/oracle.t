@@ -3,6 +3,45 @@ use strict;
 
 BEGIN { use_ok('DBIx::ProcedureCall::Oracle') };
 
+
+# setup wrappers
+
+{
+	package T1;
+	eval q{
+		use DBIx::ProcedureCall qw(
+				sysdate
+				greatest:function
+				dbms_random.initialize:procedure
+				);};
+				
+}
+
+eval q{
+	use DBIx::ProcedureCall qw( 
+		dbms_random:package
+		
+		DBMS_random.initialize:packaged:procedure
+		DBMS_random.random:packaged
+		
+		DBMS_output.get_line:procedure
+		
+		dbixproccall.refcur:cursor
+		
+		DBIxproccall.str2tbl:table:fetch[[]]
+		
+		);
+	};
+	
+	
+	
+
+
+	
+# real tests
+
+
+
 SKIP: {
 
 my $dbuser = $ENV{ORACLE_USERID};
@@ -17,15 +56,7 @@ eval {
 my $conn = DBI->connect('dbi:Oracle:', $dbuser, '', { PrintError => 0 , RaiseError=>1});
 
 
-{
-	package T1;
-	eval q{
-		use DBIx::ProcedureCall qw(
-				sysdate
-				greatest:function
-				dbms_random.initialize:procedure
-				);};
-}
+
 
 
 
@@ -89,11 +120,7 @@ ok ( 1 , $testname );
 
 my $testname = 'calls to dbms_random using a package';
 
-eval q{
-	use DBIx::ProcedureCall qw[ 
-		dbms_random:package
-		];
-	};
+
 
 dbms_random::initialize($conn,123456);
 my $a =  dbms_random::random($conn);
@@ -107,13 +134,6 @@ ok ( $a == 1826721802 , $testname );
 {
 
 my $testname = 'calls to dbms_random using packaged functions';
-
-eval q{
-	use DBIx::ProcedureCall qw[ 
-		DBMS_random.initialize:packaged:procedure
-		DBMS_random.random:packaged
-		];
-	};
 
 my $b = DBMS_random::initialize($conn,123456);
 my $a =  DBMS_random::random($conn);
@@ -259,11 +279,7 @@ ok ( ((ref $data eq 'ARRAY')
 
 my $testname = 'bind OUT parameter and use bind options';
 
-eval q{
-	use DBIx::ProcedureCall qw[ 
-		DBMS_output.get_line:procedure
-		];
-	};
+
 
 my ($line, $status);
 DBMS_output_get_line($conn, [\$line, 1000], \$status);
@@ -292,11 +308,6 @@ skip 'skipping additional tests that need to be set up (see t/oracle.sql)', 3
 
 my $testname = 'cursor';
 
-eval q{
-	use DBIx::ProcedureCall qw[ 
-		dbixproccall.refcur:cursor
-		];
-	};
 
 my $r = dbixproccall_refcur($conn);
 
@@ -315,11 +326,7 @@ ok ( $a eq 'X', $testname);
 
 my $testname = 'call a table function';
 
-eval q{
-	use DBIx::ProcedureCall qw[ 
-		dbixproccall.str2tbl:table
-		];
-	};
+
 
 my $data = dbixproccall_str2tbl($conn, '123,456,789');
 my ($no) = $data->fetchrow_array;
@@ -334,11 +341,7 @@ ok ( $no == 123 , $testname );
 
 my $testname = 'call a table function and fetch';
 
-eval q{
-	use DBIx::ProcedureCall qw[ 
-		DBIxproccall.str2tbl:table:fetch[[]]
-		];
-	};
+
 
 my $data = DBIxproccall_str2tbl($conn, '123,456,789');
 ok ( (@$data == 3  and $data->[2][0] == 789), $testname );

@@ -1,5 +1,9 @@
 Revision history for Perl extension DBIx::ProcedureCall.
 	
+0.08	Mon Apr 11 2005
+	- Command line interface (DBIx::ProcedureCall::CLI)
+	- lowered Perl version requirement to 5.6
+
 0.07 Mon Feb 14 2005
 	- support for PostgreSQL
 	- Oracle table functions

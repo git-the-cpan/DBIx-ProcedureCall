@@ -1,6 +1,7 @@
 ProcedureCall.pm
 ProcedureCall/Oracle.pm
 ProcedureCall/PostgreSQL.pm
+ProcedureCall/CLI.pm
 Changes
 Makefile.PL
 MANIFEST
@@ -10,4 +11,5 @@ t/oracle.t
 t/oracle.sql
 t/pg.t
 t/pg.sql
+t/cli.t
 META.yml                                Module meta-data (added by MakeMaker)

@@ -5,7 +5,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 sub __run_procedure{
 	shift;
@@ -170,7 +170,7 @@ __END__
 
 =head1 NAME
 
-DBIx::ProcedureCall::Oracle - Oracle driver for DBIx:::ProcedureCall
+DBIx::ProcedureCall::Oracle - Oracle driver for DBIx::ProcedureCall
 
 =head1 DESCRIPTION
 

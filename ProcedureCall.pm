@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 our %__loaded_drivers;
 
@@ -376,7 +376,7 @@ The contents of this arrayref will be used in the bind_param_inout
 method of the statement handle: Above code results in
 
 	$sql->bind_param_inout(1, \$line, 1000);
-	$sql->bind_param_inout(2, \$status);
+	$sql->bind_param_inout(2, \$status, 100); # 100 byte default size
 
 If you do not specify options, the parameters will be bound with
 a default maximum size of 100 bytes.
@@ -404,7 +404,7 @@ DBMS you are going to use:
 
 L<DBIx::ProcedureCall::Oracle>
 
-L<DBIx::ProcedureCall::Postgres>
+L<DBIx::ProcedureCall::PostgreSQL>
 
 The generic attributes are:
 
@@ -448,6 +448,26 @@ Example:
 	#   { column_one => 'data', column_two => 'data' } ]	
 
 
+=head2 ALTERNATIVE WAYS TO PASS IN THE DATABASE HANDLE
+
+
+	my $result = sysdate($conn);
+
+Having to pass in the database handle as a parameter
+is a little ugly. If you put your wrapper subroutines
+into a package you can use the following syntax
+
+	{
+		package MyDB;
+		use DBIx::ProcedureCall qw( sysdate );
+	}
+	
+	my $result = $conn->MyDB::sysdate()
+
+You are still passing the handle around, but it 
+is visually separated from the "real" parameters.
+
+
 =head2 ALTERNATIVE INTERFACE
 
 If you do not want to import wrapper functions, you can still
@@ -466,17 +486,26 @@ sense here), with the same syntax as usual:
 
 	DBIx::ProcedureCall::run($conn, 'some_select:fetch[[]]');
 
+=head2 COMMAND LINE INTERFACE
+
+There is also a command line interface:
+
+	 perl -MDBIx::ProcedureCall::CLI -e function sysdate
+
+See L<DBIx::ProcedureCall::CLI>
+
 =head1 SEE ALSO
 
 This module is built on top of L<DBI>, and
-you need to use that module to establish a database connection.
+you need to use that module (and the appropriate DBD::xx drivers)
+to establish a database connection.
 
 You have to read the DBIx::ProcedureCall documentation for the database system
 that you are using:
 
 L<DBIx::ProcedureCall::Oracle>
 
-L<DBIx::ProcedureCall::Postgres>
+L<DBIx::ProcedureCall::PostgreSQL>
 
 =head1 LIMITATIONS
 

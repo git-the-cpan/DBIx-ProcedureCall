@@ -3,7 +3,7 @@ package DBIx::ProcedureCall::PostgreSQL;
 use strict;
 use warnings;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 
 
@@ -86,7 +86,7 @@ __END__
 
 =head1 NAME
 
-DBIx::ProcedureCall::PostgreSQL - PostgreSQL driver for DBIx:::ProcedureCall
+DBIx::ProcedureCall::PostgreSQL - PostgreSQL driver for DBIx::ProcedureCall
 
 =head1 DESCRIPTION
 

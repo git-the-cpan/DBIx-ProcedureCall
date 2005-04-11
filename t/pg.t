@@ -7,7 +7,7 @@ SKIP: {
 
 my $dbuser = $ENV{PGUSER};
 
-skip 'environment PGUSER is not set, skipping PostgrSQL tests', 6 unless $dbuser;
+skip 'environment PGUSER is not set, skipping PostgreSQL tests', 6 unless $dbuser;
 
 eval {
 	require DBI;
@@ -45,7 +45,7 @@ ok ( T1::current_time($conn), $testname );
 
 my $testname = 'call to power() with positional parameters';
 
-ok ( T1::power($conn, 5,3) == 125, $testname );
+ok ( $conn->T1::power(5,3) == 125, $testname );
 		
 }
 
