@@ -1,4 +1,4 @@
-use Test::More tests => 17;
+use Test::More tests => 19;
 use strict;
 
 BEGIN { use_ok('DBIx::ProcedureCall::Oracle') };
@@ -28,8 +28,10 @@ eval q{
 		
 		dbixproccall.refcur:cursor
 		
+		dbixproccall.str2tbl:table
 		DBIxproccall.str2tbl:table:fetch[[]]
 		
+		dbixproccall.oddnum:boolean
 		);
 	};
 	
@@ -46,11 +48,11 @@ SKIP: {
 
 my $dbuser = $ENV{ORACLE_USERID};
 
-skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 16 unless $dbuser;
+skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 18 unless $dbuser;
 
 eval {
 	require DBI;
-} or skip "could not load DBI module: $@", 16;
+} or skip "could not load DBI module: $@", 18;
 
 
 my $conn = DBI->connect('dbi:Oracle:', $dbuser, '', { PrintError => 0 , RaiseError=>1});
@@ -301,7 +303,7 @@ my ($check) = $conn->selectrow_array(q[
 	select count(*) from user_source where name = 'DBIXPROCCALL'
 	]);
 
-skip 'skipping additional tests that need to be set up (see t/oracle.sql)', 3 
+skip 'skipping additional tests that need to be set up (see t/oracle.sql)', 5 
 	unless $check;
 
 {
@@ -313,8 +315,10 @@ my $r = dbixproccall_refcur($conn);
 
 my ($a)  = $r->fetchrow_array;
 
-DBIx::ProcedureCall::Oracle->__close($r);
-
+eval{
+	DBIx::ProcedureCall::Oracle->__close($r);
+};
+diag 'Warning: failed to manually close the refcursor. This may be harmless. '  if $@;
 ok ( $a eq 'X', $testname);
 
 }
@@ -326,9 +330,7 @@ ok ( $a eq 'X', $testname);
 
 my $testname = 'call a table function';
 
-
-
-my $data = dbixproccall_str2tbl($conn, '123,456,789');
+my $data  = dbixproccall_str2tbl($conn, '123,456,789');
 my ($no) = $data->fetchrow_array;
 ok ( $no == 123 , $testname );
 		
@@ -345,6 +347,21 @@ my $testname = 'call a table function and fetch';
 
 my $data = DBIxproccall_str2tbl($conn, '123,456,789');
 ok ( (@$data == 3  and $data->[2][0] == 789), $testname );
+		
+}
+
+#########################
+
+{
+
+my $testname = 'call a boolean function';
+
+
+
+my $data = dbixproccall_oddnum($conn, 42);
+is ( $data, 1, $testname );
+$data = dbixproccall_oddnum($conn, 43);
+is (  $data, 0,  $testname );	
 		
 }
 

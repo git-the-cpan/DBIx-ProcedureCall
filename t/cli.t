@@ -14,27 +14,21 @@ eval {
 
 
 SKIP:{
-	skip "pending DBD::Mock update", 1;
 	eval {
 		require DBD::Mock;
-	} or skip "skipping DBD::Mock tests", 1;
-	
-	sub DBD::Mock::st::bind_param_inout{
-		my ($sth, $param_num, $val, $max_len) = @_;
-		# check that $val is a scalar ref
-		die "need a scalar ref to bind_param_inout, not $val" unless UNIVERSAL::isa $val, 'SCALAR'; 
-		# check for positive $max_len
-		die "need to specify a maximum length to bind_param_inout" unless $max_len > 0;
-		my $tracker = $sth->FETCH( 'mock_my_history' );
-		$tracker->bound_param( $param_num, $val );
-		return 1;
-	}
+		die 'bad version' unless $DBD::Mock::VERSION gt '1.31';
+	} or skip "test requires DBD::Mock 1.32", 1;
+
 	
 	sub  DBIx::ProcedureCall::CLI::conn{
 		my ($dsn) = @_;
 		$Test::conn = DBI->connect($dsn, undef, undef, { 
 			RaiseError => 1, AutoCommit => 1, PrintError => 0,
 			});
+	    $Test::conn->{mock_get_info} = { 
+		17 => 'Oracle' , 		#  17 : SQL_DBMS_NAME  
+		18 => '10.01.0000'}; 	#  18 : version number  
+		return $Test::conn;
 	}
 	
 local $ENV{DBI_USER} = 'foo';

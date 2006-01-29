@@ -13,6 +13,8 @@ create or replace package dbixproccall as
 		return dbixproccall_type pipelined;
 	function refcur
 		return sys_refcursor;
+	function oddnum ( num number)
+		return boolean;
 end dbixproccall;
 /
 
@@ -44,6 +46,15 @@ create or replace package body dbixproccall is
 		return c_result;
 	end;
 	
+	function oddnum ( num number)
+		return boolean
+	is
+	begin
+		if mod(num,2) = 0 then
+			return true;
+		end if;
+		return false;
+	end;
 
 end dbixproccall;
 /

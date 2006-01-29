@@ -1,4 +1,9 @@
 Revision history for Perl extension DBIx::ProcedureCall.
+
+0.09	Sun Jan 29 2006
+    - Oracle :boolean function
+    - more robust handling of ORA-22905 bug
+    - mock tests using DBD::Mock
 	
 0.08	Mon Apr 11 2005
 	- Command line interface (DBIx::ProcedureCall::CLI)

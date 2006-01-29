@@ -1,4 +1,4 @@
-DBIx::ProcedureCall version 0.08
+DBIx::ProcedureCall version 0.09
 =============================
 
 NOTE:
@@ -57,7 +57,7 @@ these other modules:
 COPYRIGHT AND LICENCE
 
 
-Copyright (C) 2004 Thilo Planz
+Copyright (C) 2004-06 Thilo Planz
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 

@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 our %__loaded_drivers;
 
@@ -23,6 +23,7 @@ our %__known_attributes = qw~
 	fetch[[]]	1
 	fetch[{}]	1
 	table	1
+	boolean 1
 ~;
 	   
 sub __run_procedure{
@@ -203,6 +204,9 @@ sub import {
 	
 	# table implies function
 	$attr{'function'} = 1 if $attr{'table'};
+	
+	# boolean implies function
+	$attr{'function'} = 1 if $attr{'boolean'};
 	
 	if ($attr{'package'}){
 		delete $attr{'package'};
@@ -528,6 +532,11 @@ You cannot mix named and positional parameters
 LOB (except for small ones probably) do not work now.
 Or maybe they do. I have not tried.
 
+You cannot specify a bind buffer size for function return
+values, and thus cannot get return values that do not fit
+into the default 100 bytes. A work-around is to use an OUT-parameter
+(for which you can set a buffer size).
+
 
 
 =head1 AUTHOR
@@ -536,7 +545,7 @@ Thilo Planz, E<lt>thilo@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2004/05 by Thilo Planz
+Copyright 2004-06 by Thilo Planz
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 

@@ -5,7 +5,9 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
+
+our $ORA22905;
 
 sub __run_procedure{
 	shift;
@@ -73,7 +75,7 @@ sub __run_function{
 	# table functions
 	if ($attr->{table}){
 		# workaround for pre-9.2.0.5.0
-		if (@_ and $dbh->get_info(18) lt '09.02.0500'){
+		if (@_ and $ORA22905){
 			my $sql = "select * from table( $name (";
 			$sql .= join ',', map{$dbh->quote($_) } @_ ;
 			$sql .= '))';
@@ -88,34 +90,63 @@ sub __run_function{
 			$sql .= '(' . join (',' , map ({ '?'} @_  )) . ')';
 		}
 		$sql .= ')';
-		# prepare
-		$sql = $attr->{cached} ? $dbh->prepare_cached($sql)
-		: $dbh->prepare($sql);
+		eval{
+			# prepare
+			$sql = $attr->{cached} ? $dbh->prepare_cached($sql)
+			: $dbh->prepare($sql);
+		};
+		# error: if 22905 turn on workaround and try again
+		if ($@ and $dbh->err == 22905 and not defined $ORA22905){
+			$ORA22905 = 1;
+			return __run_function(__PACKAGE__, $dbh, $name, $attr, @_);
+		}
 		# bind
 		DBIx::ProcedureCall::__bind_params($sql, 1, \@_);
 		# execute
 		$sql->execute;
-		return $sql;
+		return $sql ;
 	}
 	
-	my $sql = "begin ? := $name";
-	if (@_){
-	$sql .= '(' . join (',' , map ({ '?'} @_  )) . ')';
-	}
-	$sql .= '; end;';
+	my $sql;
 	
+	# boolean function needs a conversion wrapper
+	if ($attr->{boolean}){
+		$sql = 'declare perl_oracle_procedures_b0 boolean; perl_oracle_procedures_n0 number; ';
+		$sql .= "begin perl_oracle_procedures_b0 := $name";
+		if (@_){
+			$sql .= '(' . join (',' , map ({ '?'} @_  )) . ')';
+		}
+		$sql .= '; if perl_oracle_procedures_b0 is null then perl_oracle_procedures_n0 := null;elsif perl_oracle_procedures_b0 then perl_oracle_procedures_n0 := 1;else perl_oracle_procedures_n0 := 0;end if; ? := perl_oracle_procedures_n0;end;';
+	}
+	else{
+		$sql = "begin ? := $name";
+		if (@_){
+			$sql .= '(' . join (',' , map ({ '?'} @_  )) . ')';
+		}
+		$sql .= '; end;';
+	}
 	# prepare
 	$sql = $attr->{cached} ? $dbh->prepare_cached($sql)
 		: $dbh->prepare($sql);
+		
 	# bind
+	my $i = 1; 
+	# boolean conversion wrapper requires the out value to be bound LAST
+	if ($attr->{boolean}){
+		DBIx::ProcedureCall::__bind_params($sql, $i, \@_);
+		$i += @_;
+	}
 	my $r;
-	my $i = 1;
+	
 	if ($attr->{cursor}){
 		$sql->bind_param_inout($i++, \$r,  0, {ora_type => DBD::Oracle::ORA_RSET()});
 	}else{
 		$sql->bind_param_inout($i++, \$r, 100);
 	}
-	DBIx::ProcedureCall::__bind_params($sql, $i, \@_);
+	
+	unless ($attr->{boolean}){
+		DBIx::ProcedureCall::__bind_params($sql, $i, \@_);
+	}
 	
 	#execute
 	$sql->execute;
@@ -128,8 +159,29 @@ sub __run_function_named{
 	if ($attr->{table}){
 		croak "cannot execute the table function '$name' with named parameters: only positional parameters are supported.";
 	}
-	my $sql = "begin :perl_oracle_procedures_ret := $name";
+	
+	my $sql;
 	my @p = sort keys %$params;
+	# boolean function needs a conversion wrapper
+	if ($attr->{boolean}){
+		$sql = 'declare perl_oracle_procedures_b0 boolean; perl_oracle_procedures_n0 number; ';
+		$sql = "begin perl_oracle_procedures_b0 := $name";
+		if (@p){
+			@p = map { "$_ => :$_" } @p;
+			$sql .= '(' . join (',', @p) . ')';
+		}
+		$sql .= '; if perl_oracle_procedures_b0 is null then perl_oracle_procedures_n0 := null;elsif perl_oracle_procedures_b0 then perl_oracle_procedures_n0 := 1;else perl_oracle_procedures_n0 := 0; end if; :perl_oracle_procedures_ret := perl_oracle_procedures_n0;end;';
+	}
+	else{
+		$sql = "begin :perl_oracle_procedures_ret := $name";
+		if (@p){
+			@p = map { "$_ => :$_" } @p;
+			$sql .= '(' . join (',', @p) . ')';
+		}
+		$sql .= '; end;';
+	}
+	
+	
 	if (@p){
 		@p = map { "$_ => :$_" } @p;
 		$sql .= '(' . join (',', @p) . ')';
@@ -354,21 +406,39 @@ one of the fetch methods (by declaring :fetch IN ADDITION to :table).
 The syntax to call table functions does not supported named
 parameters. You have to use positional parameters.
 
-=head4 Caveat for versions prior to 9.2.0.5.0
+=head4 Caveat ( ORA-22905 )
 
 There seems to be a bug in Oracle that prevents the use of bind
-variables for parameters to table functions prior to version 9.2.0.5.0
+variables for parameters to table functions
 (it will fail with an ORA-22905 error -- "cannot access rows from a non-nested table item").
-Therefore, DBIx::ProcedureCall will pass in the parameters 
+This appears to affect all versions prior to 9.2.0.5.0,
+but has also been seen on later releases on some systems.
+
+Therefore, on affected systems DBIx::ProcedureCall will pass in the parameters 
 literally (not using bind variables) when connected to older Oracle
 versions. This does not scale very well, so you should consider an 
 upgrade. (Table functions without parameters are not affected).
 
-=head3  :fetch
+A system is considered affected if a :table function
+results in ORA-22905. From that point on, the workaround
+described above is put in effect for all subsequent queries.
+
+
+=head3 :fetch
 
 Unless you also specify :table, :fetch assumes that
 you return the result set using a refcursor (:cursor).
 
+
+=head3 :boolean
+
+Unfortunately, Oracle does not automatically convert from
+BOOLEAN to strings. You can specify :boolean to declare
+a function that returns a BOOLEAN. This will create wrapper
+code to convert it to 1/0/undef for true/false/NULL.
+
+BOOLEAN values as arguments to procedure calls are currently
+not supported.
 
 =head1 SEE ALSO
 
@@ -390,7 +460,7 @@ Thilo Planz, E<lt>thilo@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2004/05 by Thilo Planz
+Copyright 2004-06 by Thilo Planz
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 
