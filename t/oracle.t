@@ -1,4 +1,4 @@
-use Test::More tests => 19;
+use Test::More tests => 20;
 use strict;
 
 BEGIN { use_ok('DBIx::ProcedureCall::Oracle') };
@@ -48,11 +48,11 @@ SKIP: {
 
 my $dbuser = $ENV{ORACLE_USERID};
 
-skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 18 unless $dbuser;
+skip 'environment ORACLE_USERID is not set, skipping Oracle tests', 19 unless $dbuser;
 
 eval {
 	require DBI;
-} or skip "could not load DBI module: $@", 18;
+} or skip "could not load DBI module: $@", 19;
 
 
 my $conn = DBI->connect('dbi:Oracle:', $dbuser, '', { PrintError => 0 , RaiseError=>1});
@@ -303,7 +303,7 @@ my ($check) = $conn->selectrow_array(q[
 	select count(*) from user_source where name = 'DBIXPROCCALL'
 	]);
 
-skip 'skipping additional tests that need to be set up (see t/oracle.sql)', 5 
+skip 'skipping additional tests that need to be set up (see t/oracle.sql)', 6 
 	unless $check;
 
 {
@@ -362,6 +362,20 @@ my $data = dbixproccall_oddnum($conn, 42);
 is ( $data, 1, $testname );
 $data = dbixproccall_oddnum($conn, 43);
 is (  $data, 0,  $testname );	
+		
+}
+
+
+#########################
+
+{
+
+my $testname = 'call a boolean function with named parameters';
+
+
+
+my $data = dbixproccall_oddnum($conn, {num => 42});
+is ( $data, 1, $testname );
 		
 }
 

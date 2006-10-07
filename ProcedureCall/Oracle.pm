@@ -5,7 +5,7 @@ use warnings;
 
 use Carp qw(croak);
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 our $ORA22905;
 
@@ -165,7 +165,7 @@ sub __run_function_named{
 	# boolean function needs a conversion wrapper
 	if ($attr->{boolean}){
 		$sql = 'declare perl_oracle_procedures_b0 boolean; perl_oracle_procedures_n0 number; ';
-		$sql = "begin perl_oracle_procedures_b0 := $name";
+		$sql .= "begin perl_oracle_procedures_b0 := $name";
 		if (@p){
 			@p = map { "$_ => :$_" } @p;
 			$sql .= '(' . join (',', @p) . ')';
@@ -182,11 +182,6 @@ sub __run_function_named{
 	}
 	
 	
-	if (@p){
-		@p = map { "$_ => :$_" } @p;
-		$sql .= '(' . join (',', @p) . ')';
-	}
-	$sql .= '; end;';
 	# prepare
 	$sql = $attr->{cached} ? $dbh->prepare_cached($sql)
 		: $dbh->prepare($sql);
