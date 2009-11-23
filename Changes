@@ -1,6 +1,6 @@
 Revision history for Perl extension DBIx::ProcedureCall.
 
-0.10.1  Mon Nov 23 2009
+0.11    Mon Nov 23 2009
         - no changes to module, just update test suite
           (skip tests when DBI is not available)
 
