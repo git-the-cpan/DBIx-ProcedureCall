@@ -3,6 +3,12 @@ use strict;
 no warnings;
 
 BEGIN {
+    my $ok;
+    $ok = eval{  require DBI; };
+    unless ($ok){
+    	for (1..5){  Test::More->builder->skip("needs DBI"); };
+    	exit;
+    }
 	use_ok('DBIx::ProcedureCall::CLI') 
 };
 

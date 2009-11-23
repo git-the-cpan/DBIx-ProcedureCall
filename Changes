@@ -1,5 +1,9 @@
 Revision history for Perl extension DBIx::ProcedureCall.
 
+0.10.1  Mon Nov 23 2009
+        - no changes to module, just update test suite
+          (skip tests when DBI is not available)
+
 0.10    Sat Oct 07 2006
         - fix critical regression bug in 0.09 
 	   (named parameters to function calls broken in Oracle driver, 

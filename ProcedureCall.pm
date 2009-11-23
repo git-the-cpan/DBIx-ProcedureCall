@@ -6,7 +6,7 @@ use warnings;
 use Carp qw(croak);
 
 
-our $VERSION = '0.10';
+our $VERSION = '0.10.1';
 
 our %__loaded_drivers;
 
